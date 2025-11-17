@@ -1,0 +1,39 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Compilar tpI_final con libcurl",
+            "type": "shell",
+            "command": "C:/mingw64/bin/gcc.exe",
+            "args": [
+                "-Wall",
+                "-Wextra",
+                "-g3",
+                "-IC:/curl/include",
+                "${workspaceFolder}/tpI_bot/tpI_final.c",
+                "-LC:/curl/lib",
+                "-lcurl",
+                "-lws2_32",
+                "-lwinmm",
+                "-lcrypt32",
+                "-lz",
+                "-o",
+                "${workspaceFolder}/tpI_bot/output/tpI_final.exe"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared"
+            },
+            "problemMatcher": ["$gcc"]
+        }
+    ]
+}

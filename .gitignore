@@ -1,3 +1,5 @@
 token.txt
 *.o
 tpI_final
+*.exe
+*.dll
