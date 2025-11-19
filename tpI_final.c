@@ -11,7 +11,6 @@ struct memory {
 };
 
 void cargar_token (char *); //abre el archivo Token.txt para leer y guardar en la variable token
-void definir_url(char *, char *);  //define la url con el token, que se almacena en el arreglo url
 char *conectarT(const char *); //conecta el programa a Telegram (va a la url, pide la info y la trae de vuelta)
 
 static size_t cb(char *, size_t, size_t, void *); //almacena la informacion que trajo conectarT
@@ -20,35 +19,55 @@ void JSON_parsear_datos(const char *, long *, char *, char *);
 //analiza y extrae la informacion clave de cb (chat_id, mensaje, first_name) y la guarda
 
 char *procesar_mensaje(const char *, const char *); //hola y chau
-char enviar_respuesta(long chat_id, const char *); //
-void msj_leido(); // para no responder respetido
-
-//poner todo dentro de un loop
+void enviar_respuesta(char*, long, char *); //envia la respuesta del bot
+void msj_leido(long ); // para no responder respetido
 
 int main(void){
   
+  //cargar_token hasta definir la url se hacen una vez asi que van fuera del loop
+
   char token[100];  //almacena el token (tendra un tamaño aprox de 50 pero le pongo 100)
   cargar_token (token);
+  char url[300];    //almacena el url (tendra un tamaño aprox de ... pero le pongo 300)
 
-  char url[300];
-  definir_url(url, token);
+  //define la url con el token, que se almacena en el arreglo url
+  sprintf(url, "https://api.telegram.org/bot%s/getUpdates", token);
 
-  char *respuesta = conectarT(url);
-  if (respuesta == NULL) {
-    printf("Error al hacer la petición.\n");
-    return 1;
+
+  while(1) { //loop
+
+    //conectar y traer la informmacion
+    char *respuesta = conectarT(url);
+
+    //verificacion de respuesta
+    if (respuesta == NULL) {
+      printf("Error al conectar, reintentando...\n");
+    }
+
+    else {
+
+      //printf("Respuesta del servidor:\n%s\n", respuesta);
+  
+      long chat_id;
+      char mensaje[200];
+      char first_name[100];
+
+      JSON_parsear_datos(respuesta, &chat_id, mensaje, first_name);
+
+      char *respuesta_bot = procesar_mensaje(mensaje, first_name); //revisar
+
+      if (respuesta_bot!=NULL){
+        enviar_respuesta(token, chat_id, respuesta_bot);
+
+      }
+
+      free(respuesta);// LIBERAR MEMORIA
+
+    }
+    
+    //consulta info cada 2 segundos
+    sleep(2);
   }
-  printf("Respuesta del servidor:\n%s\n", respuesta);
-  
-  long chat_id;
-  char mensaje[200];
-  char first_name[100];
-  JSON_parsear_datos(respuesta, &chat_id, mensaje, first_name);
-
-  char *respuesta_bot = procesar_mensaje(mensaje, first_name); //revisar
-
-  
-  free(respuesta);// LIBERAR MEMORIA
 
 }
 
@@ -68,10 +87,6 @@ void cargar_token (char *token) {
 
   fclose(fop); //cierra el archivo
 
-}
-
-void definir_url(char *url, char *token){
-  sprintf(url, "https://api.telegram.org/bot%s/getUpdates", token);
 }
 
 static size_t cb(char *data, size_t size, size_t nmemb, void *clientp)
@@ -182,95 +197,80 @@ void JSON_parsear_datos(const char *json, long *chat_id, char *mensaje, char *fi
 
 /*@brief Procesa el mensaje recibido y genera el texto de respuesta (basado en 'hola' y 'chau').
 @param mensaje_recibido La cadena de texto extraída por JSON_parsear_datos.
-@return bool Retorna 'true' si se encontró una coincidencia (hola/chau) y 'false' en otro caso.*/
-// NOTA: Se necesita modificar la función para que reciba también el nombre del usuario 
-// y devuelva la respuesta (respuesta_generada) para cumplir con el punto 4.
+@return bool Retorna 'true' si se encontró una coincidencia (hola/chau) y 'false' en otro caso. 
+NOTA: Se necesita modificar la función para que reciba también el nombre del usuario y devuelva 
+la respuesta (respuesta_generada) para cumplir con el punto 4.*/
 char *procesar_mensaje(const char *mensaje_recibido, const char *first_name) {
     static char respuesta_buffer[300]; 
-    
+
     // Convertir el mensaje a minúsculas para una detección más robusta
     // (¡Sería una mejora importante a considerar!)
     
     // 1. Mensaje contiene "hola" (o alguna variación de saludo)
     if (strstr(mensaje_recibido, "hola") != NULL) {
-        // Requisito 4: "Hola, <usuario>"
-        sprintf(respuesta_buffer, "Hola, %s!", first_name);
+        sprintf(respuesta_buffer, "Hola, %s", first_name);// Requisito 4: "Hola, <usuario>"
         return respuesta_buffer;
     }
-
     // 2. Mensaje contiene "chau" (despedida)
-    if (strstr(mensaje_recibido, "chau") != NULL) {
-        // Requisito 5: Saludo apropiado.
-        return "¡Hasta luego! Que tengas un excelente día. 👋";
+    if (strstr(mensaje_recibido, "chau") != NULL) { //¿Pq es diferente a hola?
+        return "Chau, nos vemos.";// Requisito 5: Saludo apropiado.
     }
 
-    // 3. Respuesta por defecto (si no coincide con 'hola' o 'chau')
-    return "Solo puedo entender 'hola' o 'chau'. ¿Podrías intentar con alguno de esos? 🤔";
-}// Para que esto funcione, ¡recuerda que tu función JSON_parsear_datos también debe extraer el 'first_name'!
+    return "Solo puedo entender 'hola' o 'chau', intenta con alguno de esos.";// 3. Respuesta por defecto
+}
 
+void enviar_respuesta (char* token, long chat_id, char* respuesta_bot){
+ //en chat_id ya tiene el valor del puntero asi que directmente lo usa no necesita ser*
+  //url para enviar msj
+  char URL[600];
+  sprintf(URL, "https://api.telegram.org/bot%s/sendMessage?chat_id=%ld&text=%s", token, chat_id, respuesta_bot);
+
+  // Reutilizamos función conectarT para mandar la petición
+  char *resultado = conectarT(URL);
+    
+  // Limpiamos la memoria que devuelve conectarT 
+  if(resultado != NULL) free(resultado);
+
+}
 
 /*
-API es...
-Existen muchos servidores que proveen información usando JSON...
+API es... Existen muchos servidores que proveen información usando JSON...
  
 Trabajo : implementación de un bot para la aplicación de mensajería Telegram.
 Bot es... token es...
 Si se cuenta con un token (Ej 1234567890:EstoEsUnTokenFalsoSoloParaPruebasss) y se 
 se ingresa en el navegador web la URL: 
 https://api.telegram.org/bot1234567890:EstoEsUnTokenFalsoSoloParaPruebasss/getUpdates 
-se recibirá algo como 
- }"ok": true, 
-  "result": [ 
-  { "update_id": 746602377, 
-    "message": { 
-      "message_id": 1005, 
-      "from": { 
-        "id": 100000000, 
-        "is_bot": false, 
-        "first_name": "Claudio", 
-        "last_name": "Paz", 
-        "username": "claudiojpaz", 
-        "language_code": "es"       }, 
-      "chat": { 
-        "id": 100000000, 
-        "first_name": "Claudio", 
-        "last_name": "Paz", 
-        "username": "claudiojpaz", 
-        "type": "private"           }, 
-      "date": 1762883458, 
-      "text": "Prueba de API"             } 
-  }         ]       } 
-La URL para chequear si existen mensajes debe ser: 
-https://api.telegram.org/bot<TOKEN>/getUpdates 
-Donde <TOKEN> es el código entregado por el botFather. Si no hay mensajes el JSON se verá como:
-{ "ok": true, "result": [] } 
+se recibirá algo como ...
 
-En caso de errores se verá algo como 
-{ "ok": false, "error_code": 401, "description": "Unauthorized" } 
-donde el error_code indicará cuál fue justamente el error. 
+La URL para chequear si existen mensajes debe ser: https://api.telegram.org/bot<TOKEN>/getUpdates 
+Donde <TOKEN> es el código entregado por el botFather. Si no hay mensajes el JSON se verá como:...
+En caso de errores se verá algo como:... donde el error_code indicará cuál fue justamente el error. 
 
 Cada vez que se haga la petición  https://api.telegram.org/bot<TOKEN>/getUpdates  
 el bot contestará lo mismo si ya había un mensaje, o sea, seguirá devolviendo el JSON 
-correspondiente a ese mensaje. Se puede identificar cada mensaje con el campo  update_id 
-de la respuesta. Para indicar al servidor que el mensaje ya fue leído, se debe usar la URL 
+correspondiente a ese mensaje. 
+Se puede identificar cada mensaje con el campo  update_id de la respuesta. 
+Para indicar al servidor que el mensaje ya fue leído, se debe usar la URL 
+
 https://api.telegram.org/bot<TOKEN>/getUpdates?offset=<update_id+1> 
+
 donde luego de offset= hay que colocar el entero correspondiente al  update_id  pero 
-incrementado en por lo menos una unidad. En el ejemplo anterior del mensaje de prueba el id 
-era  746602377  entonces para indicarle al servidor que ya se leyó el mensaje, se le pide el 
-siguiente: 
-https://api.telegram.org/bot<TOKEN>/getUpdates?offset=746602378 
+incrementado en por lo menos una unidad. 
+
+En el ejemplo anterior del mensaje de prueba el id era  746602377  entonces para indicarle al servidor 
+que ya se leyó el mensaje, se le pide el siguiente: https://api.telegram.org/bot<TOKEN>/getUpdates?offset=746602378 
 el resultado (si no hay nuevo mensaje) sería nuevamente 
 { "ok": true, "result": [] } 
-
 a partir de este punto se puede seguir preguntando por el 746602378 hasta que aparezca y 
-entonces incrementarlo, o simplemente hacer la petición con 
-https://api.telegram.org/bot<TOKEN>/getUpdates 
+entonces incrementarlo, o simplemente hacer la petición con https://api.telegram.org/bot<TOKEN>/getUpdates 
 hasta que no haya mensajes. 
 
 Para enviar un mensaje al usuario hay que identificar el campo  chat  el cuál tiene una 
-subestructura donde hay que buscar el campo  id.  En el JSON que en el ejemplo es 
-100000000  (número ficticio). Con este número hay que usar el método /sendMessage de la API 
-https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=100000000&text=Hola 
+subestructura donde hay que buscar el campo  id.  
+
+En el JSON que en el ejemplo es 100000000  (número ficticio). Con este número hay que usar 
+el método /sendMessage de la API https://api.telegram.org/bot<TOKEN>/sendMessage?chat_id=100000000&text=Hola 
 Si el mensaje es una oración de más de una palabra, los espacios deben ser reemplazados por 
 la secuencia %20 ya que las URLs no pueden contener espacios en blanco y necesitan ser codificadas 
 para garantizar que se interpreten correctamente por los servidores web y navegadores. 
