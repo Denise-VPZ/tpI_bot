@@ -132,6 +132,7 @@ char *conectarT(const char *url) {
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&chunk);
+    
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_CAINFO, "C:\\\\curl\\\\cacert.pem");
 
@@ -158,7 +159,7 @@ void JSON_parsear_datos(const char *json, long *update_id, long long *chat_id, c
     char *bloque = strstr(json, "\"message\":");
     if (!bloque) return;
 
-    char *pos_update = strstr(bloque, "\"update_id\":");
+    char *pos_update = strstr(json, "\"update_id\":");
       if (pos_update) {
         pos_update += strlen("\"update_id\":");
         sscanf(pos_update, "%ld", &update_encontrado);
